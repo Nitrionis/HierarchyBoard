@@ -1,15 +1,14 @@
 ﻿import React from 'react';
 import ReactDOM from 'react-dom';
 import Authorization from './authorization';
+import Board from './board';
 
 const modeAuthentication = 0;
-const modeLobbyMenu = 1;
-const modeGame = 2;
+const modeBoard = 1;
 
 interface Props {  }
 interface State {
     userName: string,
-    opponentName: string,
     mode: number
 }
 
@@ -17,24 +16,21 @@ export class App extends React.Component<Props, State> {
     constructor(props) {
         super(props);
         this.state = {
-            userName: 'AirAce',
-            opponentName: 'AirAceOpponent',
+            userName: '',
             mode: modeAuthentication
         };
     }
     closeAuthorization = (name: string) => {
         this.setState({
-            mode: modeLobbyMenu,
+            mode: modeBoard,
             userName: name
         });
     }
     render() {
-        if (this.state.mode == modeLobbyMenu)
-            return <h1></h1>;
         if (this.state.mode == modeAuthentication)
             return <Authorization close={this.closeAuthorization} />
-        if (this.state.mode == modeGame)
-            return <h1></h1>;
+        if (this.state.mode == modeBoard)
+            return <Board/>;
     }
 }
 

@@ -85,10 +85,11 @@ class LoginMenu extends React.Component<LoginProps, LoginState> {
         this.setState({ password: event.target.value });
     }
     sigIn = () => {
-        Axios.post(serverAddress + 'login/', {
-            mail: this.state.mail,
-            password: this.state.password
-        }).then(this.processServerResponse);
+        this.props.close('TestName');
+        //Axios.post(serverAddress + 'login/', {
+        //    mail: this.state.mail,
+        //    password: this.state.password
+        //}).then(this.processServerResponse);
     }
     processServerResponse = (res) => {
         console.log(res);

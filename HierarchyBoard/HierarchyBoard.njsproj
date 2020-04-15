@@ -55,6 +55,9 @@
     <TypeScriptCompile Include="client\authorization.tsx">
       <SubType>Code</SubType>
     </TypeScriptCompile>
+    <TypeScriptCompile Include="client\board.tsx">
+      <SubType>Code</SubType>
+    </TypeScriptCompile>
     <TypeScriptCompile Include="client\sharedInclude.tsx">
       <SubType>Code</SubType>
     </TypeScriptCompile>
