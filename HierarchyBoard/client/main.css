@@ -1,0 +1,54 @@
+﻿body {
+    margin: 0;
+    padding: 0;
+}
+
+.authorizationDiv {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    max-width: 360px;
+    min-width: 320px;
+    padding: 8px 32px 16px;
+}
+
+.authorizationMainDiv {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    margin-top: -128px;
+}
+
+.authorizationSecondaryDiv {
+    position: relative;
+    box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+}
+
+.authorizationLabelDiv {
+    width: 100%;
+    height: 100px;
+    background: linear-gradient(45deg, #FE6B8B 30%, #FF8E53 90%);
+    border-radius: 8px 8px 0 0;
+}
+
+.authorizationLabelText {
+    font-family: "Roboto";
+    color: white;
+    font-weight: 600;
+    margin: 0;
+    font-size: 2.2em;
+    text-align: center;
+    vertical-align: middle;
+    line-height: 100px;
+}
+
+.tableMainDiv {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
