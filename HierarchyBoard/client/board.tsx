@@ -27,15 +27,12 @@ interface CanvasProps {
     contextMenuCalled: (me: MouseEvent) => void;
 }
 interface CanvasState {
-    scaleFactor: number,
     size: {
         width: number,
         height: number
     },
-    scale: {
-        x: number,
-        y: number
-    },
+    scale: number,
+    scaleOffset: number,
     shiftVector: {
         x: number,
         y: number
@@ -54,20 +51,17 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         this.canvas = React.createRef();
         this.ctx = null;
         this.state = {
-            scaleFactor: 1.0,
             size: {
                 width: 800,
                 height: 600
             },
-            scale: {
-                x: 1.0,
-                y: 1.0
-            },
+            scale: 1.0,
+            scaleOffset: 1.0,
             shiftVector: {
                 x: 0.0,
                 y: 0.0
             },
-            dragPrevPos: null
+            dragPrevPos: null,
         };
         window.addEventListener("resize", this.windowResized);
     }
@@ -97,8 +91,8 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
                 let newShift = null;
                 if (state.dragPrevPos != null) {
                     newShift = {
-                        x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * state.scale.x,
-                        y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * state.scale.y
+                        x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * window.devicePixelRatio,
+                        y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * window.devicePixelRatio
                     };
                 }
                 return {
@@ -112,21 +106,25 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         }
     }
     wheel = (event: WheelEvent) => {
-        this.setState((state) => {
-            const delta = Math.sign(event.deltaY) / 10.0;
-            return {
-                scale: {
-                    x: Math.min(10, Math.max(0.1, state.scale.x + delta)),
-                    y: Math.min(10, Math.max(0.1, state.scale.y + delta))
+        if (event.ctrlKey == false) {
+            this.setState((state) => {
+                const delta = Math.sign(event.deltaY) / 10.0;
+                const scaleOffset = Math.min(8, Math.max(0.125, state.scaleOffset + delta));
+                return {
+                    scaleOffset: scaleOffset,
+                    scale: window.devicePixelRatio * scaleOffset
                 }
-            }
-        });
+            });
+        }
     }
     windowResized = () => {
-        this.setState({
-            size: {
-                width: window.innerWidth,
-                height: window.innerHeight
+        this.setState((state) => {
+            return {
+                scale: window.devicePixelRatio * state.scaleOffset,
+                size: {
+                    width: window.innerWidth * window.devicePixelRatio,
+                    height: window.innerHeight * window.devicePixelRatio
+                }
             }
         });
     }
@@ -139,25 +137,25 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         this.ctx.fillRect(0, 0, this.state.size.width, this.state.size.height);
         this.drawGrid();
         this.ctx.translate(
-            window.innerWidth / 2 + this.state.shiftVector.x,
-            window.innerHeight / 2 + this.state.shiftVector.y);
+            this.state.size.width / 2 + this.state.shiftVector.x,
+            this.state.size.height / 2 + this.state.shiftVector.y);
         this.drawItems();
     }
     drawGrid = () => {
-        const gridStep = 128.0;
+        const gridStep = 128.0 * this.state.scale;
         this.ctx.strokeStyle = '#e5e5e5';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
         let shift = this.state.shiftVector;
         let start = {
-            x: shift.x % (gridStep * this.state.scale.x),
-            y: shift.y % (gridStep * this.state.scale.y)
+            x: shift.x % gridStep,
+            y: shift.y % gridStep
         }
-        for (let x = start.x; x < this.state.size.width; x += gridStep * this.state.scale.x) {
+        for (let x = start.x; x < this.state.size.width; x += gridStep) {
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.state.size.height);
         }
-        for (let y = start.y; y < this.state.size.height; y += gridStep * this.state.scale.y) {
+        for (let y = start.y; y < this.state.size.height; y += gridStep) {
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.state.size.width, y);
         }
@@ -168,6 +166,7 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
     }
     render() {
         return <canvas
+            id='boardCanvas'
             ref={this.canvas}
             width={this.state.size.width}
             height={this.state.size.height}
