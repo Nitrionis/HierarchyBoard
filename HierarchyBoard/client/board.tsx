@@ -40,16 +40,16 @@ interface CanvasState {
     dragPrevPos: {
         x: number,
         y: number
-    },
-    lastCursorPosition: {
-        x: number,
-        y: number
     }
 }
 
 class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
     canvas: React.RefObject<HTMLCanvasElement>;
     ctx: CanvasRenderingContext2D;
+    lastCursorPosition: {
+        x: number,
+        y: number
+    }
     constructor(props) {
         super(props);
         this.canvas = React.createRef();
@@ -65,11 +65,11 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
                 x: 0.0,
                 y: 0.0
             },
-            dragPrevPos: null,
-            lastCursorPosition: {
-                x: window.innerWidth * window.devicePixelRatio / 2,
-                y: window.innerHeight * window.devicePixelRatio / 2
-            }
+            dragPrevPos: null
+        };
+        this.lastCursorPosition = {
+            x: window.innerWidth * window.devicePixelRatio / 2,
+            y: window.innerHeight * window.devicePixelRatio / 2
         };
         window.addEventListener("resize", this.windowResized);
     }
@@ -94,6 +94,10 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         this.setState({ dragPrevPos: null });
     }
     mousemove = (event: MouseEvent) => {
+        this.lastCursorPosition = {
+            x: window.innerWidth * window.devicePixelRatio / 2,
+            y: window.innerHeight * window.devicePixelRatio / 2
+        };
         if (this.state.dragPrevPos != null) {
             this.setState((state) => {
                 let newShift = null;
@@ -108,19 +112,8 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
                     dragPrevPos: {
                         x: event.clientX,
                         y: event.clientY
-                    },
-                    lastCursorPosition: {
-                        x: event.clientX * window.devicePixelRatio,
-                        y: event.clientY * window.devicePixelRatio
                     }
                 };
-            });
-        } else {
-            this.setState({
-                lastCursorPosition: {
-                    x: event.clientX * window.devicePixelRatio,
-                    y: event.clientY * window.devicePixelRatio
-                }
             });
         }
     }
@@ -150,8 +143,8 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         this.setState((state) => {
             const scale = window.devicePixelRatio * state.scaleOffset;
             const cursorVector = {
-                x: state.lastCursorPosition.x - this.state.size.width / 2,
-                y: state.lastCursorPosition.y - this.state.size.height / 2
+                x: this.lastCursorPosition.x - this.state.size.width / 2,
+                y: this.lastCursorPosition.y - this.state.size.height / 2
             };
             const shiftVector = {
                 x: state.shiftVector.x + (state.shiftVector.x - cursorVector.x) * (scale - state.scale) / state.scale,
@@ -182,20 +175,37 @@ class CanvasComponent extends React.Component<CanvasProps, CanvasState> {
         this.drawItems();
     }
     drawGrid = () => {
-        const gridStep = 128.0 * this.state.scale;
+        let log2 = /*Math.abs*/(Math.log2(this.state.scale));
+        let step = Math.pow(2, Math.trunc(log2));
+        let bigStep = 300.0 * (1 + (this.state.scale - step) / step);
+        let smallStep = bigStep / 5.0;
         this.ctx.strokeStyle = '#e5e5e5';
         this.ctx.lineWidth = 1;
         this.ctx.beginPath();
-        let shift = this.state.shiftVector;
-        let start = {
-            x: shift.x % gridStep,
-            y: shift.y % gridStep
-        }
-        for (let x = start.x; x < this.state.size.width; x += gridStep) {
+        let bigStart = {
+            x: (this.state.size.width / 2 + this.state.shiftVector.x) % bigStep,
+            y: (this.state.size.height / 2 + this.state.shiftVector.y) % bigStep
+        };
+        for (let x = bigStart.x; x < this.state.size.width; x += bigStep) {
             this.ctx.moveTo(x, 0);
             this.ctx.lineTo(x, this.state.size.height);
         }
-        for (let y = start.y; y < this.state.size.height; y += gridStep) {
+        for (let y = bigStart.y; y < this.state.size.height; y += bigStep) {
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(this.state.size.width, y);
+        }
+        this.ctx.stroke();
+        this.ctx.lineWidth = 0.5;
+        this.ctx.beginPath();
+        let smallStart = {
+            x: (this.state.size.width / 2 + this.state.shiftVector.x) % smallStep,
+            y: (this.state.size.height / 2 + this.state.shiftVector.y) % smallStep
+        };
+        for (let x = smallStart.x; x < this.state.size.width; x += smallStep) {
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, this.state.size.height);
+        }
+        for (let y = smallStart.y; y < this.state.size.height; y += smallStep) {
             this.ctx.moveTo(0, y);
             this.ctx.lineTo(this.state.size.width, y);
         }
