@@ -58,7 +58,13 @@
     <TypeScriptCompile Include="client\board.tsx">
       <SubType>Code</SubType>
     </TypeScriptCompile>
+    <TypeScriptCompile Include="client\excelProcessor.tsx">
+      <SubType>Code</SubType>
+    </TypeScriptCompile>
     <TypeScriptCompile Include="client\sharedInclude.tsx">
+      <SubType>Code</SubType>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="client\canvasComponent.tsx">
       <SubType>Code</SubType>
     </TypeScriptCompile>
   </ItemGroup>
