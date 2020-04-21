@@ -1,5 +1,6 @@
 import React from 'react';
 import CanvasComponent from './canvasComponent';
+import BoardLabel from './boardLabel';
 import { serverAddress } from './sharedInclude';
 
 interface IProps {  }
@@ -19,6 +20,7 @@ export default class Board extends React.Component<IProps, IState> {
         return (
             <div className='boardMainDiv'>
                 <CanvasComponent contextMenuCalled={this.contextMenuCalled} />
+                <BoardLabel />
             </div>
         );
     }

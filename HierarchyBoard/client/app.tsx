@@ -2,7 +2,6 @@
 import ReactDOM from 'react-dom';
 import Authorization from './authorization';
 import Board from './board';
-import { importFromExcel, exportToExcel } from './excelProcessor';
 
 const modeAuthentication = 0;
 const modeBoard = 1;
@@ -20,17 +19,6 @@ export class App extends React.Component<IProps, IState> {
             userName: '',
             mode: modeAuthentication
         };
-        let obj = {
-            f1: {
-                f12: {
-
-                }
-            },
-            f2: {
-
-            }
-        }
-        console.log(exportToExcel('path', { 'test': 123 }));
     }
     closeAuthorization = (name: string) => {
         this.setState({
