@@ -13,7 +13,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 let sqlite3 = require('sqlite3');
-let db = new sqlite3.Database('users.db', (error) => {
+let db = new sqlite3.Database('main.db', (error) => {
     if (error) {
         console.error(error.message)
     } else {
@@ -34,7 +34,7 @@ app.post('/login', function (req, res) {
         return;
     }
     db.serialize(() => {
-        db.each("SELECT * FROM users WHERE email='" + req.body.mail + "'", (err, row) => {
+        db.each("SELECT * FROM users WHERE mail='" + req.body.mail + "'", (err, row) => {
             if (err)
                 console.error(err.message);
             if (req.body.password == row.password) {
@@ -42,6 +42,16 @@ app.post('/login', function (req, res) {
                     res: true,
                     name: row.name
                 });
+                var stmt = db.prepare("UPDATE users SET sessionid = ?");
+                stmt.run(req.session.id, function (error) {
+                    if (error) {
+                        console.error(error.message);
+                        console.log('Fail to save session for user '.concat(req.body.mail));
+                    } else {
+                        console.log("Successfully save session:".concat(req.body.mail));
+                    }
+                });
+                stmt.finalize();
             } 
             else
                 res.send({
@@ -95,11 +105,22 @@ app.post('/registration', function (req, res) {
 });
 
 app.get('/logout', function (req, res) {
-    console.log('logout ' + req.session.id);
+    var sessionId = req.session.id
+    console.log('logout ' + sessionId);
     req.session.destroy(function (err) {
         if (err) {
             console.log(err);
         } else {
+            var stmt = db.prepare("UPDATE users SET sessionid = null");
+            stmt.run(function (error) {
+                if (error) {
+                    console.error(error.message);
+                    console.log('Fail to remove session for user: '.concat(sessionId));
+                } else {
+                    console.log("Successfully remove session: ".concat(sessionId));
+                }
+            });
+            stmt.finalize();
             res.redirect('/');
         }
     });
