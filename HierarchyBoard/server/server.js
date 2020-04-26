@@ -26,7 +26,7 @@ let port = 8080;
 app.set('port', port);
 
 app.post('/login', function (req, res) {
-    if (req.body.mail.length == 0 || req.body.password.length == 0) {
+    if (req.body.mail.length === 0 || req.body.password.length === 0) {
         res.send({
             res: false,
             msg: 'wrong email or password'
@@ -37,13 +37,13 @@ app.post('/login', function (req, res) {
         db.each("SELECT * FROM users WHERE mail='" + req.body.mail + "'", (err, row) => {
             if (err)
                 console.error(err.message);
-            if (req.body.password == row.password) {
+            if (req.body.password === row.password) {
                 res.send({
                     res: true,
                     name: row.name
                 });
-                var stmt = db.prepare("UPDATE users SET sessionid = ?");
-                stmt.run(req.session.id, function (error) {
+                var stmt = db.prepare("UPDATE users SET sessionid = ? WHERE mail= ?");
+                stmt.run(req.session.id, req.body.mail, function (error) {
                     if (error) {
                         console.error(error.message);
                         console.log('Fail to save session for user '.concat(req.body.mail));
@@ -63,9 +63,9 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/registration', function (req, res) {
-    if (req.body.name.length == 0
-        || req.body.mail.length == 0
-        || req.body.password.length == 0)
+    if (req.body.name.length === 0
+        || req.body.mail.length === 0
+        || req.body.password.length === 0)
     {
         res.send({
             res: false,
@@ -74,19 +74,19 @@ app.post('/registration', function (req, res) {
         return;
     }
     db.serialize(function () {
-        db.each("SELECT count(name) as res FROM users WHERE name='" + req.body.name + "' or email = '" + req.body.mail + "'",
+        db.each("SELECT count(name) as res FROM users WHERE name='" + req.body.name + "' or mail = '" + req.body.mail + "'",
             (err, row) => {
             if (err)
                 console.error(err.message);
-            if (row.res != 0) {
+            if (row.res !== 0) {
                 res.send({
                     res: false,
-                    msg: 'wrong login or email'
+                    msg: 'user allready exists'
                 });
             }
             else {
-                var stmt = db.prepare("INSERT INTO users VALUES (Null, ?, ?, ?, 0, 0)");
-                stmt.run(req.body.name, req.body.mail, req.body.password, function (error) {
+                var stmt = db.prepare("INSERT INTO users VALUES (Null, ?, ?, ?, ?)");
+                stmt.run(req.body.name, req.body.mail, req.body.password, req.session.id, function (error) {
                     if (error) {
                         console.error(error.message);
                         res.send({
@@ -124,6 +124,51 @@ app.get('/logout', function (req, res) {
             res.redirect('/');
         }
     });
+});
+
+app.get('/getlist', function (req, res) {
+    db.get("SELECT * FROM users WHERE sessionid= ?", req.session.id,
+        (err, row) => {
+            if (err) {
+                console.error(err.message);
+            }
+            if (row === undefined) {
+                res.send({
+                    res: false,
+                    message: "Your session has expired, please login again"
+                })
+                return
+            }
+            db.all("SELECT fileid FROM owners WHERE ownerid= ?", row.id, function (err, rows) {
+                if (err) {
+                    console.error(err.message);
+                }
+                if (rows.length === 0) {
+                    res.send({
+                        res: false,
+                        message: "The list is empty"
+                    })
+                    return
+                }
+                let ids = rows.map(row => row.fileid)
+                console.log(ids)
+                db.all("SELECT name FROM files WHERE id in (" + rows.map(function () {return '?'}).join(',') + ")", ids, function (err, rows) {
+                    if (err) {
+                        console.error(err.message);
+                        res.send({
+                            res: false,
+                            message: "unknown error"
+                        })
+                        return
+                    }
+                    let names = rows.map(row => row.name)
+                    res.send({
+                        res: true,
+                        names: names
+                    })
+                })
+            })
+        });
 });
 
 server.listen(port, function () {
