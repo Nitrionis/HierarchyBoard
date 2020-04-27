@@ -40,6 +40,12 @@ app.post('/login', function (req, res) {
         db.each("SELECT * FROM users WHERE mail='" + req.body.mail + "'", (err, row) => {
             if (err)
                 console.error(err.message);
+            if (row === undefined) {
+                res.send({
+                    res: false,
+                    message: "Unknown user, please sign up"
+                });
+            }
             if (req.body.password === row.password) {
                 res.send({
                     res: true,
@@ -66,15 +72,26 @@ app.post('/login', function (req, res) {
 });
 
 app.post('/registration', function (req, res) {
-    if (req.body.name.length === 0
-        || req.body.mail.length === 0
-        || req.body.password.length === 0)
-    {
+    if (req.body.name.length === 0) {
         res.send({
             res: false,
-            msg: 'wrong login or email or password'
+            msg: 'Empty name'
         });
-        return;
+        return
+    }
+    if (req.body.mail.length === 0) {
+        res.send({
+            res: false,
+            msg: 'Empty email'
+        });
+        return
+    }
+    if (req.body.password.length === 0) {
+        res.send({
+            res: false,
+            msg: 'Empty password'
+        });
+        return
     }
     db.serialize(function () {
         db.each("SELECT count(name) as res FROM users WHERE name='" + req.body.name + "' or mail = '" + req.body.mail + "'",
@@ -84,20 +101,19 @@ app.post('/registration', function (req, res) {
             if (row.res !== 0) {
                 res.send({
                     res: false,
-                    msg: 'user allready exists'
+                    msg: 'User allready exists'
                 });
-            }
-            else {
-                var stmt = db.prepare("INSERT INTO users VALUES (Null, ?, ?, ?, ?)");
+            } else {
+                let stmt = db.prepare("INSERT INTO users VALUES (Null, ?, ?, ?, ?)");
                 stmt.run(req.body.name, req.body.mail, req.body.password, req.session.id, function (error) {
                     if (error) {
                         console.error(error.message);
                         res.send({
                             res: false,
-                            msg: 'wrong login or email'
+                            msg: 'Unexpected error (0x1)'
                         });
                     } else {
-                        res.send({ res: true });
+                        res.send({ res: true, message: "User successfully registered" });
                         console.log("User successfully registered with email:".concat(req.body.mail));
                     }
                 });
@@ -113,6 +129,10 @@ app.get('/logout', function (req, res) {
     req.session.destroy(function (err) {
         if (err) {
             console.log(err);
+            res.send({
+                res: false,
+                msg: 'Unexpected error (0x2)'
+            });
         } else {
             var stmt = db.prepare("UPDATE users SET sessionid = null");
             stmt.run(function (error) {
@@ -160,7 +180,7 @@ app.get('/getlist', function (req, res) {
                         console.error(err.message);
                         res.send({
                             res: false,
-                            message: "unknown error"
+                            message: "Unexpected error(0x3)"
                         })
                         return
                     }
@@ -192,6 +212,12 @@ app.get('/getfile', function (req, res) {
         (err, row) => {
             if (err) {
                 console.log(err.message)
+            }
+            if (row === undefined) {
+                res.send({
+                    res: false,
+                    message: "Unknown file id"
+                })
             }
             let file = row
             db.get("SELECT * FROM owners WHERE fileid= ?", file.id, function (err, row) {
@@ -240,6 +266,8 @@ app.post("/savefile", function(req, res) {
         (err, row) => {
             if (err) {
                 console.error(err.message);
+            }
+            if (row === undefined) {
                 res.send({
                     res: false,
                     msg: 'Your session has expired, please re-login'
@@ -254,12 +282,16 @@ app.post("/savefile", function(req, res) {
                     console.error(error.message);
                     res.send({
                         res: false,
-                        msg: 'Unexpected error'
+                        msg: 'Unexpected error(0x4)'
                     });
                 } else {
                     db.get("SELECT id FROM files WHERE path= ?", filename, function (err, row) {
                         if (err) {
                             console.log(err.message)
+                            res.send({
+                                res: false,
+                                msg: 'Unexpected error(0x5)'
+                            });
                             return
                         }
                         let stmt = db.prepare("INSERT INTO owners VALUES (?, ?)");
@@ -268,19 +300,22 @@ app.post("/savefile", function(req, res) {
                                 console.error(error.message);
                                 res.send({
                                     res: false,
-                                    msg: 'Unexpected error'
+                                    msg: 'Unexpected error(0x6)'
                                 });
                             } else {
                                 fs.writeFile(filename, JSON.stringify(req.body.file, null, 2), function(error) {
                                     if (error) {
                                         console.log(error.message)
-                                        return
+                                        res.send({
+                                            res: false,
+                                            msg: 'Unexpected error(0x6)'
+                                        });
                                     }
+                                    res.send({
+                                        res: true,
+                                        msg: 'File successfully saved'
+                                    });
                                 })
-                                res.send({
-                                    res: true,
-                                    msg: 'File successfully saved'
-                                });
                             }
                         });
                         stmt.finalize();
