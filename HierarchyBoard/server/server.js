@@ -7,6 +7,7 @@ let app = express();
 let server = require('http').Server(app);
 let staticPath = path.join(__dirname, '../');
 let fs = require('fs')
+let { v4: uuidv4 } = require('uuid');
 
 app.use(express.static(staticPath));
 app.use(session({ secret: 'topsecret' }));
@@ -233,6 +234,62 @@ app.get('/getfile', function (req, res) {
             })
         })
 });
+
+app.post("/savefile", function(req, res) {
+    db.get("SELECT * FROM users WHERE sessionid= ?", req.session.id,
+        (err, row) => {
+            if (err) {
+                console.error(err.message);
+                res.send({
+                    res: false,
+                    msg: 'Your session has expired, please re-login'
+                });
+                return
+            }
+            let filename = "./files/" + uuidv4() + ".hb"
+            let ownerid = row.id;
+            var stmt = db.prepare("INSERT INTO files VALUES (Null, ?, ?)");
+            stmt.run(filename, req.body.name, function (error, row) {
+                if (error) {
+                    console.error(error.message);
+                    res.send({
+                        res: false,
+                        msg: 'Unexpected error'
+                    });
+                } else {
+                    db.get("SELECT id FROM files WHERE path= ?", filename, function (err, row) {
+                        if (err) {
+                            console.log(err.message)
+                            return
+                        }
+                        let stmt = db.prepare("INSERT INTO owners VALUES (?, ?)");
+                        stmt.run(ownerid, row.id, function (error) {
+                            if (error) {
+                                console.error(error.message);
+                                res.send({
+                                    res: false,
+                                    msg: 'Unexpected error'
+                                });
+                            } else {
+                                fs.writeFile(filename, JSON.stringify(req.body.file, null, 2), function(error) {
+                                    if (error) {
+                                        console.log(error.message)
+                                        return
+                                    }
+                                })
+                                res.send({
+                                    res: true,
+                                    msg: 'File successfully saved'
+                                });
+                            }
+                        });
+                        stmt.finalize();
+                    })
+                }
+            });
+            stmt.finalize();
+        });
+})
 
 server.listen(port, function () {
     console.log('server running on port ' + port);
