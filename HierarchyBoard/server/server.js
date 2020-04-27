@@ -152,7 +152,7 @@ app.get('/getlist', function (req, res) {
                 }
                 let ids = rows.map(row => row.fileid)
                 console.log(ids)
-                db.all("SELECT name FROM files WHERE id in (" + rows.map(function () {return '?'}).join(',') + ")", ids, function (err, rows) {
+                db.all("SELECT id, name FROM files WHERE id in (" + rows.map(function () {return '?'}).join(',') + ")", ids, function (err, rows) {
                     if (err) {
                         console.error(err.message);
                         res.send({
@@ -161,10 +161,16 @@ app.get('/getlist', function (req, res) {
                         })
                         return
                     }
-                    let names = rows.map(row => row.name)
+                    let files = rows.map(function (row) {
+                        let dict = {}
+                        dict["id"] = row.id;
+                        dict["name"] = row.name;
+
+                        return dict
+                    })
                     res.send({
                         res: true,
-                        names: names
+                        files: files
                     })
                 })
             })
