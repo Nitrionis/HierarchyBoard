@@ -31,7 +31,7 @@ app.post('/login', function (req, res) {
     if (req.body.mail.length === 0 || req.body.password.length === 0) {
         res.send({
             res: false,
-            msg: 'wrong email or password'
+            message: 'Wrong email or password'
         });
         return;
     }
@@ -45,6 +45,7 @@ app.post('/login', function (req, res) {
                     res: false,
                     message: "Unknown user, please sign up"
                 });
+                return
             }
             if (req.body.password === row.password) {
                 res.send({
@@ -65,7 +66,7 @@ app.post('/login', function (req, res) {
             else
                 res.send({
                     res: false,
-                    msg: 'wrong login or password'
+                    message: 'Wrong login or password'
                 });
         });
     });
@@ -75,21 +76,21 @@ app.post('/registration', function (req, res) {
     if (req.body.name.length === 0) {
         res.send({
             res: false,
-            msg: 'Empty name'
+            message: 'Empty name'
         });
         return
     }
     if (req.body.mail.length === 0) {
         res.send({
             res: false,
-            msg: 'Empty email'
+            message: 'Empty email'
         });
         return
     }
     if (req.body.password.length === 0) {
         res.send({
             res: false,
-            msg: 'Empty password'
+            message: 'Empty password'
         });
         return
     }
@@ -101,7 +102,7 @@ app.post('/registration', function (req, res) {
             if (row.res !== 0) {
                 res.send({
                     res: false,
-                    msg: 'User allready exists'
+                    message: 'User already exists'
                 });
             } else {
                 let stmt = db.prepare("INSERT INTO users VALUES (Null, ?, ?, ?, ?)");
@@ -110,7 +111,7 @@ app.post('/registration', function (req, res) {
                         console.error(error.message);
                         res.send({
                             res: false,
-                            msg: 'Unexpected error (0x1)'
+                            message: 'Unexpected error (0x1)'
                         });
                     } else {
                         res.send({ res: true, message: "User successfully registered" });
@@ -131,7 +132,7 @@ app.get('/logout', function (req, res) {
             console.log(err);
             res.send({
                 res: false,
-                msg: 'Unexpected error (0x2)'
+                message: 'Unexpected error (0x2)'
             });
         } else {
             var stmt = db.prepare("UPDATE users SET sessionid = null");
@@ -218,6 +219,7 @@ app.get('/getfile', function (req, res) {
                     res: false,
                     message: "Unknown file id"
                 })
+                return
             }
             let file = row
             db.get("SELECT * FROM owners WHERE fileid= ?", file.id, function (err, row) {
@@ -270,7 +272,7 @@ app.post("/savefile", function(req, res) {
             if (row === undefined) {
                 res.send({
                     res: false,
-                    msg: 'Your session has expired, please re-login'
+                    message: 'Your session has expired, please re-login'
                 });
                 return
             }
@@ -282,7 +284,7 @@ app.post("/savefile", function(req, res) {
                     console.error(error.message);
                     res.send({
                         res: false,
-                        msg: 'Unexpected error(0x4)'
+                        message: 'Unexpected error(0x4)'
                     });
                 } else {
                     db.get("SELECT id FROM files WHERE path= ?", filename, function (err, row) {
@@ -290,7 +292,7 @@ app.post("/savefile", function(req, res) {
                             console.log(err.message)
                             res.send({
                                 res: false,
-                                msg: 'Unexpected error(0x5)'
+                                message: 'Unexpected error(0x5)'
                             });
                             return
                         }
@@ -300,7 +302,7 @@ app.post("/savefile", function(req, res) {
                                 console.error(error.message);
                                 res.send({
                                     res: false,
-                                    msg: 'Unexpected error(0x6)'
+                                    message: 'Unexpected error(0x6)'
                                 });
                             } else {
                                 fs.writeFile(filename, JSON.stringify(req.body.file, null, 2), function(error) {
@@ -308,12 +310,13 @@ app.post("/savefile", function(req, res) {
                                         console.log(error.message)
                                         res.send({
                                             res: false,
-                                            msg: 'Unexpected error(0x6)'
+                                            message: 'Unexpected error(0x7)'
                                         });
+                                        return
                                     }
                                     res.send({
                                         res: true,
-                                        msg: 'File successfully saved'
+                                        message: 'File successfully saved'
                                     });
                                 })
                             }
