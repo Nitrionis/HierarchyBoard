@@ -6,6 +6,7 @@ let bodyParser = require('body-parser');
 let app = express();
 let server = require('http').Server(app);
 let staticPath = path.join(__dirname, '../');
+let fs = require('fs')
 
 app.use(express.static(staticPath));
 app.use(session({ secret: 'topsecret' }));
@@ -33,6 +34,7 @@ app.post('/login', function (req, res) {
         });
         return;
     }
+
     db.serialize(() => {
         db.each("SELECT * FROM users WHERE mail='" + req.body.mail + "'", (err, row) => {
             if (err)
@@ -175,6 +177,61 @@ app.get('/getlist', function (req, res) {
                 })
             })
         });
+});
+
+app.get('/getfile', function (req, res) {
+    if (req.query["fileid"] === undefined) {
+        res.send({
+            res: false,
+            message: "File id is missing"
+        })
+        return
+    }
+    db.get("SELECT * FROM files WHERE id= ?", req.query["fileid"],
+        (err, row) => {
+            if (err) {
+                console.log(err.message)
+            }
+            let file = row
+            db.get("SELECT * FROM owners WHERE fileid= ?", file.id, function (err, row) {
+                if (err) {
+                    console.log(err.message)
+                }
+                db.get("SELECT * FROM users WHERE id = ?", row.ownerid, function (err, row) {
+                    if (row.sessionid === req.session.id) {
+                        fs.readFile("./" + file.path, 'utf8', (err, jsonString) => {
+                            if (err) {
+                                console.log("Error reading file from disk:", err)
+                                res.send({
+                                    res: false,
+                                    message: "File not found"
+                                })
+                                return
+                            }
+                            try {
+                                const file = JSON.parse(jsonString)
+                                res.send({
+                                    res: true,
+                                    file: file
+                                })
+
+                            } catch(err) {
+                                console.log('Error parsing JSON string:', err)
+                                res.send({
+                                    res: false,
+                                    message: "File corrupted"
+                                })
+                            }
+                        })
+                    } else {
+                        res.send({
+                            res: false,
+                            message: "This file doesnt belong to you"
+                        })
+                    }
+                })
+            })
+        })
 });
 
 server.listen(port, function () {
