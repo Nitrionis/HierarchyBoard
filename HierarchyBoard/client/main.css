@@ -74,3 +74,12 @@ body {
 .boardMenuButtons {
     display: inline-block;
 }
+
+#boardContextMenu {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    border-radius: 4px;
+    background-color: white;
+    box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.12);
+}

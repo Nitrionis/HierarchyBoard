@@ -1,11 +1,17 @@
 import React from 'react';
-
-export interface IDrawable {
-    draw : (ctx: CanvasRenderingContext2D) => void;
-}
+import BoardLabel from './boardLabel';
+import { RectangleBuilder, Side } from './canvasItemBuilder';
+import {
+    Vector2,
+    Rectangle,
+    ICanvasItem,
+    Text,
+    ThemedRectangle
+} from './canvasItem';
 
 interface IProps {
     contextMenuCalled: (me: MouseEvent) => void;
+    grigVisible: boolean;
 }
 interface IState {
     size: {
@@ -21,18 +27,22 @@ interface IState {
     dragPrevPos: {
         x: number,
         y: number
-    }
+    },
+    rectangleBuilder: RectangleBuilder,
+    gridVisible: boolean
 }
 
 export default class CanvasComponent extends React.Component<IProps, IState> {
     canvas: React.RefObject<HTMLCanvasElement>;
     ctx: CanvasRenderingContext2D;
+    items: Array<ICanvasItem>;
     lastCursorPosition: {
         x: number,
         y: number
     }
     constructor(props) {
         super(props);
+        this.items = [];
         this.canvas = React.createRef();
         this.ctx = null;
         this.state = {
@@ -46,7 +56,9 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
                 x: 0.0,
                 y: 0.0
             },
-            dragPrevPos: null
+            dragPrevPos: null,
+            rectangleBuilder: null,
+            gridVisible: true
         };
         this.lastCursorPosition = {
             x: window.innerWidth * window.devicePixelRatio / 2,
@@ -55,7 +67,7 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
         window.addEventListener("resize", this.windowResized);
     }
     componentDidMount() {
-        this.canvas.current.addEventListener('contextmenu', this.props.contextMenuCalled);
+        //this.canvas.current.addEventListener('contextmenu', this.props.contextMenuCalled);
         this.canvas.current.addEventListener('mousedown', this.mousedown);
         this.canvas.current.addEventListener('mouseup', this.mouseup);
         this.canvas.current.addEventListener('mousemove', this.mousemove);
@@ -63,7 +75,43 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
         this.ctx = this.canvas.current.getContext('2d');
         this.windowResized();
     }
+    getCanvasPoint = (event: MouseEvent) => new Vector2(
+        (-this.state.shiftVector.x + event.clientX * window.devicePixelRatio - this.state.size.width / 2) / this.state.scale,
+        (-this.state.shiftVector.y + event.clientY * window.devicePixelRatio - this.state.size.height / 2) / this.state.scale
+    );
+    getHitTestTarget = (canvasPoint: Vector2) => {
+        for (let item of this.items) {
+            let targetItem = item.hitTest(canvasPoint);
+            if (targetItem != null) {
+                return targetItem;
+            }
+        }
+        return null;
+    }
     mousedown = (event: MouseEvent) => {
+        let canvasPoint = this.getCanvasPoint(event);
+        let targetItem = this.getHitTestTarget(canvasPoint);
+        console.log(targetItem);
+        if (this.state.rectangleBuilder != null) {
+            if (
+                !this.state.rectangleBuilder.isBuildingStarted &&
+                !this.state.rectangleBuilder.isBuildingFinished
+                )
+            {
+                let rectangle = new ThemedRectangle(
+                    canvasPoint,
+                    new Vector2(0, 0),
+                    null,
+                    '#eaac30',
+                    '#3087ea',
+                    4,
+                    32
+                );
+                this.items.push(rectangle);
+                this.state.rectangleBuilder.building(rectangle, Side.Right | Side.Down);
+            }
+            this.state.rectangleBuilder.mousedown(event, this.getCanvasPoint(event));
+        }
         this.setState({
             dragPrevPos: {
                 x: event.clientX,
@@ -79,23 +127,31 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
             x: window.innerWidth * window.devicePixelRatio / 2,
             y: window.innerHeight * window.devicePixelRatio / 2
         };
-        if (this.state.dragPrevPos != null) {
-            this.setState((state) => {
-                let newShift = null;
-                if (state.dragPrevPos != null) {
-                    newShift = {
-                        x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * window.devicePixelRatio,
-                        y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * window.devicePixelRatio
-                    };
-                }
-                return {
-                    shiftVector: newShift,
-                    dragPrevPos: {
-                        x: event.clientX,
-                        y: event.clientY
+        let builder = this.state.rectangleBuilder;
+        if (builder == null || builder.isBuildingFinished || event.button == 2) {
+            if (this.state.dragPrevPos != null) {
+                this.setState((state) => {
+                    let newShift = null;
+                    if (state.dragPrevPos != null) {
+                        newShift = {
+                            x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * window.devicePixelRatio,
+                            y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * window.devicePixelRatio
+                        };
                     }
-                };
-            });
+                    return {
+                        shiftVector: newShift,
+                        dragPrevPos: {
+                            x: event.clientX,
+                            y: event.clientY
+                        }
+                    };
+                });
+            }
+        } else {
+            if (builder.mousemove(event, this.getCanvasPoint(event))) {
+                this.redraw();
+                builder.draw(this.state.scale);
+            }
         }
     }
     wheel = (event: WheelEvent) => {
@@ -142,13 +198,15 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
         });
     }
     componentDidUpdate() {
-        this.updateCanvas();
+        this.redraw();
     }
-    updateCanvas = () => {
+    redraw = () => {
         this.ctx.resetTransform();
         this.ctx.fillStyle = '#f2f2f2';
         this.ctx.fillRect(0, 0, this.state.size.width, this.state.size.height);
-        this.drawGrid();
+        if (this.state.gridVisible) {
+            this.drawGrid();
+        }
         this.ctx.translate(
             this.state.size.width / 2 + this.state.shiftVector.x,
             this.state.size.height / 2 + this.state.shiftVector.y);
@@ -193,43 +251,38 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
         this.ctx.stroke();
     }
     drawItems = () => {
-        let size = this.state.size;
-        this.ctx.fillStyle = 'red';
-        this.ctx.fillRect(-size.width / 4, -size.height / 4, 100, 100);
-        this.ctx.fillStyle = 'blue';
-        this.ctx.fillRect(-size.width / 4, +size.height / 4, 100, 100);
-        this.ctx.fillStyle = 'green';
-        this.ctx.fillRect(+size.width / 4, 0, 100, 100);
-        this.ctx.fillStyle = 'green';
-        this.ctx.fillRect(+size.width, 0, 200, 200);
-        this.ctx.beginPath();
-        this.ctx.fillStyle = "rgb(0, 0, 0)";
-        this.ctx.arc(0, 0, 32, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.beginPath();
-        this.ctx.fillStyle = "rgb(255, 0, 0)";
-        this.ctx.arc(
-            (-this.state.shiftVector.x - this.state.size.width / 2) / this.state.scale,
-            (-this.state.shiftVector.y - this.state.size.height / 2) / this.state.scale,
-            32, 0, 2 * Math.PI);
-        this.ctx.fill();
-        this.ctx.strokeStyle = 'rgb(0, 0, 0)';
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(0, this.state.size.height / 2);
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(0, -this.state.size.height / 2);
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(this.state.size.width / 2, 0);
-        this.ctx.moveTo(0, 0);
-        this.ctx.lineTo(-this.state.size.width / 2, 0);
-        this.ctx.stroke();
+        if (this.items != null) {
+            for (let i of this.items) {
+                i.draw(this.ctx);
+            }
+        }
+    }
+    toggleGrid = () => {
+        this.setState((state) => {
+            return { gridVisible: !state.gridVisible }
+        });
+    }
+    createRect = () => {
+        this.setState(() => {
+            return { rectangleBuilder: new RectangleBuilder(this.ctx) }
+        });
+    }
+    createText = () => {
+
     }
     render() {
-        return <canvas
-            id='boardCanvas'
-            ref={this.canvas}
-            width={this.state.size.width}
-            height={this.state.size.height}
-        />;
+        return <div>
+            <canvas
+                id='boardCanvas'
+                ref={this.canvas}
+                width={this.state.size.width}
+                height={this.state.size.height}
+            />
+            <BoardLabel
+                toggleGrid={this.toggleGrid}
+                createRect={this.createRect}
+                createText={this.createText}
+            />
+        </div>;
     }
 }
