@@ -276,6 +276,13 @@ app.post("/savefile", function(req, res) {
                 });
                 return
             }
+            if (row.sessionid !== req.session.id) {
+                res.send({
+                    res: false,
+                    message: "This file doesnt belong to you"
+                })
+                return;
+            }
             let filename = "./files/" + uuidv4() + ".hb"
             let ownerid = row.id;
             var stmt = db.prepare("INSERT INTO files VALUES (Null, ?, ?)");
@@ -328,6 +335,81 @@ app.post("/savefile", function(req, res) {
             stmt.finalize();
         });
 })
+
+app.post("/removefile", function(req, res) {
+    db.get("SELECT * FROM users WHERE sessionid= ?", req.session.id,
+        (err, row) => {
+            if (err) {
+                console.error(err.message);
+            }
+            if (row === undefined) {
+                res.send({
+                    res: false,
+                    message: 'Your session has expired, please re-login'
+                });
+                return
+            }
+            let userid = row.id
+            db.get("SELECT * FROM owners WHERE fileid= ?", req.body.id, function (err, row) {
+                if (row.ownerid !== userid) {
+                    res.send({
+                        res: false,
+                        message: "This file doesnt belong to you"
+                    })
+                    return;
+                }
+                db.get("SELECT * FROM files WHERE id= ?", req.body.id, function (err, row) {
+                    if (err) {
+                        console.log(err.message)
+                        res.send({
+                            res: false,
+                            message: 'Unexpected error(0x8)'
+                        });
+                        return
+                    }
+                    if (row === undefined) {
+                        res.send({
+                            res: false,
+                            message: 'File is missing'
+                        });
+                        return
+                    }
+                    let fileId = row.id
+                    fs.unlink(row.path, function () {
+                        let stmt = db.prepare("DELETE FROM files WHERE id = ?");
+                        stmt.run(fileId, function (err) {
+                            if (err) {
+                                console.log(err.message)
+                                res.send({
+                                    res: false,
+                                    message: 'Unexpected error(0x9)'
+                                });
+                                return
+                            }
+                            let stmt2 = db.prepare("DELETE FROM owners WHERE fileid = ?")
+                            stmt2.run(fileId, function (err) {
+                                if (err) {
+                                    console.log(err.message)
+                                    res.send({
+                                        res: false,
+                                        message: 'Unexpected error(0x10)'
+                                    });
+                                    return;
+                                }
+                                res.send({
+                                    res: true,
+                                    message: 'File successfully removed'
+                                });
+                                return
+                            })
+                            stmt2.finalize()
+                        })
+                        stmt.finalize()
+                    })
+                })
+            });
+        });
+});
 
 server.listen(port, function () {
     console.log('server running on port ' + port);
