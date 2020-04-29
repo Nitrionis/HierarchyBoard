@@ -16,10 +16,25 @@ import GridOnIcon from '@material-ui/icons/GridOn';
 import AddBoxIcon from '@material-ui/icons/AddBox';
 import CheckBoxOutlineBlankIcon from '@material-ui/icons/CheckBoxOutlineBlank';
 import FormatSizeIcon from '@material-ui/icons/FormatSize';
+import DescriptionIcon from '@material-ui/icons/Description';
+import SaveIcon from '@material-ui/icons/Save';
+import Snackbar from '@material-ui/core/Snackbar';
+import MuiAlert from '@material-ui/lab/Alert';
+import TextField from '@material-ui/core/TextField';
+import Dialog from '@material-ui/core/Dialog';
+import DialogActions from '@material-ui/core/DialogActions';
+import DialogContent from '@material-ui/core/DialogContent';
+import DialogContentText from '@material-ui/core/DialogContentText';
+import DialogTitle from '@material-ui/core/DialogTitle';
 import { importFromExcel, exportToExcel } from './excelProcessor';
+import Axios from 'axios';
+import { string } from 'prop-types';
 
 const ThemedMenu = styled(Menu)({ padding: 0 });
 const ThemedMenuItem = styled(MenuItem)({});
+const ThemedMenuItemIcon = styled(ListItemIcon)({
+    minWidth: 0
+});
 const ThemedListItemText = styled(ListItemText)({ marginLeft: '-24px' });
 
 const MainButton = styled(Button)({
@@ -44,18 +59,36 @@ interface IProps {
     createText: () => void;
 }
 interface IState {
-    isCollapsed: boolean,
-    isCreateSubMenuOpen: boolean
+    isCollapsed: boolean;
+    isUserFilesListOpen: boolean;
+    isCreateSubMenuOpen: boolean;
+    fileNames: Array<string>;
+    alertMessage: string;
+    isSnackbarOpen: boolean;
+    isSaveDialogOpen: boolean;
 }
 
 export default class BoardLabel extends React.Component<IProps, IState> {
+    userFilesButton: React.RefObject<HTMLButtonElement>;
     addItemButton: React.RefObject<HTMLButtonElement>;
     constructor(props) {
         super(props);
         this.state = {
             isCollapsed: false,
-            isCreateSubMenuOpen: false
+            isUserFilesListOpen: false,
+            isCreateSubMenuOpen: false,
+            fileNames: [
+                'file_1',
+                'file_2',
+                'file_3',
+                'file_4',
+                'file_5',
+            ],
+            alertMessage: '',
+            isSnackbarOpen: false,
+            isSaveDialogOpen: false,
         };
+        this.userFilesButton = React.createRef();
         this.addItemButton = React.createRef();
     }
     menuClick = () => {
@@ -73,21 +106,113 @@ export default class BoardLabel extends React.Component<IProps, IState> {
         this.setState({ isCreateSubMenuOpen: false });
         this.props.createText();
     }
+    getUserFilesList = () => {
+        this.setState({ isUserFilesListOpen: true });
+    }
+    deleteFile = (fileName: string) => {
+        this.setState({
+            alertMessage: fileName + ' successful deleted!',
+            isSnackbarOpen: true
+        });
+    }
+    closeSnackbar = () => {
+        this.setState({
+            isSnackbarOpen: false
+        });
+    }
+    closeSaveDialog = () => {
+        this.setState({
+            isSaveDialogOpen: false
+        });
+    }
+    buildFilesList = () => {
+        var arr = [];
+        for (let name of this.state.fileNames) {
+            arr.push((
+                <ThemedMenuItem>
+                    <div
+                        style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                        }}
+                        onClick={() => console.log('file button')}
+                    >
+                        <ListItemIcon>
+                            <DescriptionIcon fontSize="small" />
+                        </ListItemIcon>
+                        <ThemedListItemText primary={name} />
+                        <div style={{ width: '16px' }}></div>
+                    </div>
+                    <IconButton
+                        onClick={() => this.deleteFile(name)}
+                    >
+                        <DeleteIcon />
+                    </IconButton>
+                </ThemedMenuItem>
+            ));
+        }
+        return arr;
+    }
     render() {
         return (
             <div className='boardControlDiv'>
                 <MainButton color="primary" onClick={this.menuClick}>MENU</MainButton>
                 <div className='boardMenuButtons'>
                     <Collapse in={!this.state.isCollapsed} timeout="auto" unmountOnExit>
-                        <IconButton aria-label="create new" component="span">
+                        <IconButton
+                            ref={this.userFilesButton}
+                            aria-label="create new"
+                            component="span"
+                            onClick={this.getUserFilesList}
+                        >
                             <ViewCarouselIcon />
                         </IconButton>
-                        <IconButton aria-label="create new" component="span">
-                            <NoteAddIcon />
+                        <ThemedMenu
+                            id="customized-menu"
+                            anchorEl={this.userFilesButton.current}
+                            keepMounted
+                            open={this.state.isUserFilesListOpen}
+                            onClose={() => this.setState({ isUserFilesListOpen: false })}
+                            MenuListProps={{
+                                disablePadding: true
+                            }}
+                        >
+                            {this.buildFilesList()}
+                        </ThemedMenu>
+                        <IconButton
+                            aria-label="download excel"
+                            component="span"
+                            onClick={() => { this.setState({ isSaveDialogOpen: true }); }}
+                        >
+                            <SaveIcon />
                         </IconButton>
-                        <IconButton aria-label="delete this" component="span">
-                            <DeleteIcon />
-                        </IconButton>
+                        <Dialog
+                            open={this.state.isSaveDialogOpen}
+                            onClose={this.closeSaveDialog}
+                            aria-labelledby="form-dialog-title"
+                        >
+                            <DialogTitle id="form-dialog-title">Enter file name!</DialogTitle>
+                            <DialogContent>
+                                <DialogContentText>
+                                    If the name is selected, the file will not be saved.
+                                </DialogContentText>
+                                <TextField
+                                    autoFocus
+                                    margin="dense"
+                                    id="name"
+                                    fullWidth
+                                />
+                            </DialogContent>
+                            <DialogActions>
+                                <Button onClick={this.closeSaveDialog} color="primary">
+                                    Cancel
+                                </Button>
+                                <Button onClick={this.closeSaveDialog} color="primary">
+                                    Save
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
                         <IconButton
                             aria-label="download excel"
                             component="span"
@@ -143,6 +268,11 @@ export default class BoardLabel extends React.Component<IProps, IState> {
                         <IconButton aria-label="download excel" component="span">
                             <CloudDownloadIcon />
                         </IconButton>
+                        <Snackbar open={this.state.isSnackbarOpen} autoHideDuration={6000} onClose={this.closeSnackbar}>
+                            <MuiAlert elevation={6} variant="filled" onClose={this.closeSnackbar} severity="success">
+                                {this.state.alertMessage}
+                            </MuiAlert>
+                        </Snackbar>
                     </Collapse>
                 </div>
             </div >

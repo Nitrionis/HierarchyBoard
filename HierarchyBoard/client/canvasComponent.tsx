@@ -1,6 +1,10 @@
 import React from 'react';
 import BoardLabel from './boardLabel';
-import { RectangleBuilder, Side } from './canvasItemBuilder';
+import {
+    MouseController,
+    RectangleBuilder,
+    Side
+} from './canvasItemBuilder';
 import {
     Vector2,
     Rectangle,
@@ -32,14 +36,18 @@ interface IState {
     gridVisible: boolean
 }
 
-export default class CanvasComponent extends React.Component<IProps, IState> {
+export default class CanvasComponent
+    extends React.Component<IProps, IState>
+    implements MouseController
+{
     canvas: React.RefObject<HTMLCanvasElement>;
     ctx: CanvasRenderingContext2D;
     items: Array<ICanvasItem>;
+    controllers: Array<MouseController>;
     lastCursorPosition: {
         x: number,
         y: number
-    }
+    };
     constructor(props) {
         super(props);
         this.items = [];
@@ -64,17 +72,19 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
             x: window.innerWidth * window.devicePixelRatio / 2,
             y: window.innerHeight * window.devicePixelRatio / 2
         };
+        this.controllers = [];
+        this.controllers.push(this);
         window.addEventListener("resize", this.windowResized);
     }
     componentDidMount() {
-        //this.canvas.current.addEventListener('contextmenu', this.props.contextMenuCalled);
-        this.canvas.current.addEventListener('mousedown', this.mousedown);
-        this.canvas.current.addEventListener('mouseup', this.mouseup);
-        this.canvas.current.addEventListener('mousemove', this.mousemove);
+        this.canvas.current.addEventListener('mousedown', this.mousedownController);
+        this.canvas.current.addEventListener('mouseup', this.mouseupController);
+        this.canvas.current.addEventListener('mousemove', this.mousemoveController);
         this.canvas.current.addEventListener('wheel', this.wheel);
         this.ctx = this.canvas.current.getContext('2d');
         this.windowResized();
     }
+    isCompleted = () => false;
     getCanvasPoint = (event: MouseEvent) => new Vector2(
         (-this.state.shiftVector.x + event.clientX * window.devicePixelRatio - this.state.size.width / 2) / this.state.scale,
         (-this.state.shiftVector.y + event.clientY * window.devicePixelRatio - this.state.size.height / 2) / this.state.scale
@@ -88,29 +98,38 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
         }
         return null;
     }
-    mousedown = (event: MouseEvent) => {
+    getActiveController = () => {
+        let controller = this.controllers[this.controllers.length - 1];
+        if (controller.isCompleted()) {
+            console.log('controller completed');
+            this.controllers.pop();
+        }
+        return controller;
+    }
+    mousedownController = (event: MouseEvent) => {
         let canvasPoint = this.getCanvasPoint(event);
+        let hitTestTarget = this.getHitTestTarget(canvasPoint);
+        if (this.getActiveController().mousedown(event, canvasPoint, hitTestTarget)) {
+            this.redraw();
+        }
+    }
+    mouseupController = (event: MouseEvent) => {
+        if (this.getActiveController().mouseup(event, this.getCanvasPoint(event))) {
+            this.redraw();
+        }
+    }
+    mousemoveController = (event: MouseEvent) => {
+        if (this.getActiveController().mousemove(event, this.getCanvasPoint(event))) {
+            this.redraw();
+        }
+    }
+    mousedown = (event: MouseEvent, canvasPoint: Vector2) => {
+        document.body.style.cursor = 'default';
         let targetItem = this.getHitTestTarget(canvasPoint);
         console.log(targetItem);
-        if (this.state.rectangleBuilder != null) {
-            if (
-                !this.state.rectangleBuilder.isBuildingStarted &&
-                !this.state.rectangleBuilder.isBuildingFinished
-                )
-            {
-                let rectangle = new ThemedRectangle(
-                    canvasPoint,
-                    new Vector2(0, 0),
-                    null,
-                    '#eaac30',
-                    '#3087ea',
-                    4,
-                    32
-                );
-                this.items.push(rectangle);
-                this.state.rectangleBuilder.building(rectangle, Side.Right | Side.Down);
-            }
-            this.state.rectangleBuilder.mousedown(event, this.getCanvasPoint(event));
+        if (targetItem instanceof ThemedRectangle) {
+            this.controllers.push(new RectangleBuilder(
+                this.ctx, targetItem, this.controllers, this.items));
         }
         this.setState({
             dragPrevPos: {
@@ -118,41 +137,38 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
                 y: event.clientY
             }
         });
+        return true;
     }
-    mouseup = (event: MouseEvent) => {
+    mouseup = (event: MouseEvent, canvasPoint: Vector2) => {
+        document.body.style.cursor = 'default';
         this.setState({ dragPrevPos: null });
+        return true;
     }
-    mousemove = (event: MouseEvent) => {
+    mousemove = (event: MouseEvent, canvasPoint: Vector2) => {
+        document.body.style.cursor = 'default';
         this.lastCursorPosition = {
             x: window.innerWidth * window.devicePixelRatio / 2,
             y: window.innerHeight * window.devicePixelRatio / 2
         };
-        let builder = this.state.rectangleBuilder;
-        if (builder == null || builder.isBuildingFinished || event.button == 2) {
-            if (this.state.dragPrevPos != null) {
-                this.setState((state) => {
-                    let newShift = null;
-                    if (state.dragPrevPos != null) {
-                        newShift = {
-                            x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * window.devicePixelRatio,
-                            y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * window.devicePixelRatio
-                        };
-                    }
-                    return {
-                        shiftVector: newShift,
-                        dragPrevPos: {
-                            x: event.clientX,
-                            y: event.clientY
-                        }
+        if (this.state.dragPrevPos != null) {
+            this.setState((state) => {
+                let newShift = null;
+                if (state.dragPrevPos != null) {
+                    newShift = {
+                        x: state.shiftVector.x + (event.clientX - state.dragPrevPos.x) * window.devicePixelRatio,
+                        y: state.shiftVector.y + (event.clientY - state.dragPrevPos.y) * window.devicePixelRatio
                     };
-                });
-            }
-        } else {
-            if (builder.mousemove(event, this.getCanvasPoint(event))) {
-                this.redraw();
-                builder.draw(this.state.scale);
-            }
+                }
+                return {
+                    shiftVector: newShift,
+                    dragPrevPos: {
+                        x: event.clientX,
+                        y: event.clientY
+                    }
+                };
+            });
         }
+        return true;
     }
     wheel = (event: WheelEvent) => {
         if (event.ctrlKey == false) {
@@ -212,6 +228,12 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
             this.state.size.height / 2 + this.state.shiftVector.y);
         this.ctx.scale(this.state.scale, this.state.scale);
         this.drawItems();
+        let controller = this.controllers[this.controllers.length - 1];
+        if (controller.isCompleted()) {
+            console.log('controller completed');
+            this.controllers.pop();
+        }
+        controller.postDraw(this.state.scale);
     }
     drawGrid = () => {
         let log2 = Math.log2(this.state.scale);
@@ -257,6 +279,7 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
             }
         }
     }
+    postDraw = () => { }
     toggleGrid = () => {
         this.setState((state) => {
             return { gridVisible: !state.gridVisible }
@@ -264,7 +287,12 @@ export default class CanvasComponent extends React.Component<IProps, IState> {
     }
     createRect = () => {
         this.setState(() => {
-            return { rectangleBuilder: new RectangleBuilder(this.ctx) }
+            let rectangle = new ThemedRectangle(
+                null, new Vector2(0, 0), null, '#eaac30', '#3087ea', 4, 32);
+            let rectangleBuilder = new RectangleBuilder(
+                this.ctx, rectangle, this.controllers, this.items);
+            this.controllers.push(rectangleBuilder);
+            return { rectangleBuilder: rectangleBuilder }
         });
     }
     createText = () => {
